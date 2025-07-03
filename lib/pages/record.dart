@@ -22,7 +22,7 @@ class _RecordState extends State<Recording> {
   StreamSubscription<LocationData>? _locationSubscription;
   RecordingState _recordingState = RecordingState.idle;
 
-  List<LatLng> _recordedPath = []; // 👈 New: Stores the path
+  List<LatLng> _recordedPath = [];
 
   void _stopLocationUpdates() {
     _locationSubscription?.cancel();
@@ -70,7 +70,7 @@ class _RecordState extends State<Recording> {
 
     setState(() {
       _recordingState = RecordingState.recording;
-      _recordedPath.clear(); // 👈 Clear previous path
+      _recordedPath.clear();
     });
 
     location.changeSettings(interval: 7500);
@@ -82,7 +82,7 @@ class _RecordState extends State<Recording> {
 
       setState(() {
         _locationData = newLocation;
-        _recordedPath.add(newLatLng); // 👈 Add point to path
+        _recordedPath.add(newLatLng);
       });
 
       final currentZoom = _mapController.camera.zoom;

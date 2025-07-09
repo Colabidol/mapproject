@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:async';
+import 'dart:io';
 
 enum RecordingState { idle, recording, paused }
 
@@ -23,6 +25,18 @@ class _RecordState extends State<Recording> {
   RecordingState _recordingState = RecordingState.idle;
 
   List<LatLng> _recordedPath = [];
+  final ImagePicker _picker = ImagePicker();
+  File? _imageFile;
+
+  Future<void> _takePicture() async {
+    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.camera);
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = File(pickedFile.path);
+      });
+      print("Picture taken: ${pickedFile.path}");
+    }
+  }
 
   void _stopLocationUpdates() {
     _locationSubscription?.cancel();
@@ -79,7 +93,6 @@ class _RecordState extends State<Recording> {
 
     _locationSubscription = location.onLocationChanged.listen((LocationData newLocation) {
       final newLatLng = LatLng(newLocation.latitude!, newLocation.longitude!);
-
       setState(() {
         _locationData = newLocation;
         _recordedPath.add(newLatLng);
@@ -94,7 +107,21 @@ class _RecordState extends State<Recording> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: appBar(),
-      body: content(),
+      body: Stack(
+        children: [
+          content(),
+          if (_recordingState == RecordingState.recording || _recordingState == RecordingState.paused)
+            Positioned(
+              bottom: 90,
+              right: 20,
+              child: FloatingActionButton(
+                onPressed: _takePicture,
+                tooltip: 'Take Photo',
+                child: const Icon(Icons.camera_alt),
+              ),
+            ),
+        ],
+      ),
       bottomNavigationBar: bottomAppBar(),
     );
   }
@@ -109,63 +136,63 @@ class _RecordState extends State<Recording> {
   }
 
   Widget content() {
-  if (_locationData == null ||
-      _locationData!.latitude == null ||
-      _locationData!.longitude == null) {
+    if (_locationData == null ||
+        _locationData!.latitude == null ||
+        _locationData!.longitude == null) {
+      return FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: LatLng(14.5995, 120.9842),
+          initialZoom: 12,
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'dev.fleaflet.flutter_map.example',
+          ),
+        ],
+      );
+    }
+
+    final double latitude = _locationData!.latitude!;
+    final double longitude = _locationData!.longitude!;
+    final LatLng currentLocation = LatLng(latitude, longitude);
+
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(
-        initialCenter: LatLng(14.5995, 120.9842),
-        initialZoom: 12,
+        initialCenter: currentLocation,
       ),
       children: [
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'dev.fleaflet.flutter_map.example',
         ),
-      ],
-    );
-  }
-
-  final double latitude = _locationData!.latitude!;
-  final double longitude = _locationData!.longitude!;
-  final LatLng currentLocation = LatLng(latitude, longitude);
-
-  return FlutterMap(
-    mapController: _mapController,
-    options: MapOptions(
-      initialCenter: currentLocation,
-    ),
-    children: [
-      TileLayer(
-        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        userAgentPackageName: 'dev.fleaflet.flutter_map.example',
-      ),
-      if (_recordedPath.isNotEmpty)
-        PolylineLayer(
-          polylines: [
-            Polyline(
-              points: _recordedPath,
-              strokeWidth: 4.0,
-              color: Colors.blueAccent,
+        if (_recordedPath.isNotEmpty)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: _recordedPath,
+                strokeWidth: 4.0,
+                color: Colors.blueAccent,
+              ),
+            ],
+          ),
+        MarkerLayer(
+          markers: [
+            Marker(
+              point: currentLocation,
+              width: 20,
+              height: 20,
+              child: Image.asset(
+                'assets/icons/Group 77.png',
+              ),
             ),
           ],
         ),
-      MarkerLayer(
-        markers: [
-          Marker(
-            point: currentLocation,
-            width: 20,
-            height: 20,
-            child: Image.asset(
-              'assets/icons/Group 77.png',
-            ),
-          ),
-        ],
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
   BottomAppBar bottomAppBar() {
     return BottomAppBar(

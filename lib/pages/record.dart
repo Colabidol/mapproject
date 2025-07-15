@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:location/location.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:location/location.dart';
 
 enum RecordingState { idle, recording, paused }
 
@@ -18,7 +20,6 @@ class Recording extends StatefulWidget {
 class _RecordState extends State<Recording> {
   final Location location = Location();
   final MapController _mapController = MapController();
-  final double currentZoom = 15;
 
   LocationData? _locationData;
   StreamSubscription<LocationData>? _locationSubscription;
@@ -27,6 +28,21 @@ class _RecordState extends State<Recording> {
   List<LatLng> _recordedPath = [];
   final ImagePicker _picker = ImagePicker();
   File? _imageFile;
+
+  final LatLng _defaultCenter = const LatLng(14.5995, 120.9842); // Manila
+  final double currentZoom = 15;
+
+  final _tileProvider = FMTCTileProvider(
+    stores: const {'mapStore': BrowseStoreStrategy.readUpdateCreate},
+    loadingStrategy: BrowseLoadingStrategy.cacheFirst,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // Show default map with no location updates.
+    // Recording starts manually via button.
+  }
 
   Future<void> _takePicture() async {
     final XFile? pickedFile = await _picker.pickImage(source: ImageSource.camera);
@@ -41,31 +57,25 @@ class _RecordState extends State<Recording> {
   void _stopLocationUpdates() {
     _locationSubscription?.cancel();
     _locationSubscription = null;
-
     setState(() {
       _recordingState = RecordingState.idle;
     });
-
     print("Recording stopped");
   }
 
   void _pauseRecording() {
     _locationSubscription?.pause();
-
     setState(() {
       _recordingState = RecordingState.paused;
     });
-
     print("Recording paused");
   }
 
   void _resumeRecording() {
     _locationSubscription?.resume();
-
     setState(() {
       _recordingState = RecordingState.recording;
     });
-
     print("Recording resumed");
   }
 
@@ -88,7 +98,6 @@ class _RecordState extends State<Recording> {
     });
 
     location.changeSettings(interval: 7500);
-
     _locationData = await location.getLocation();
 
     _locationSubscription = location.onLocationChanged.listen((LocationData newLocation) {
@@ -136,37 +145,22 @@ class _RecordState extends State<Recording> {
   }
 
   Widget content() {
-    if (_locationData == null ||
-        _locationData!.latitude == null ||
-        _locationData!.longitude == null) {
-      return FlutterMap(
-        mapController: _mapController,
-        options: MapOptions(
-          initialCenter: LatLng(14.5995, 120.9842),
-          initialZoom: 12,
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'dev.fleaflet.flutter_map.example',
-          ),
-        ],
-      );
-    }
-
-    final double latitude = _locationData!.latitude!;
-    final double longitude = _locationData!.longitude!;
-    final LatLng currentLocation = LatLng(latitude, longitude);
+    final LatLng center = _locationData != null
+        ? LatLng(_locationData!.latitude!, _locationData!.longitude!)
+        : _defaultCenter;
 
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(
-        initialCenter: currentLocation,
+        initialCenter: center,
+        initialZoom: currentZoom,
+        keepAlive: true,
       ),
       children: [
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'dev.fleaflet.flutter_map.example',
+          userAgentPackageName: 'com.example.mapproject',
+          tileProvider: _tileProvider,
         ),
         if (_recordedPath.isNotEmpty)
           PolylineLayer(
@@ -178,18 +172,17 @@ class _RecordState extends State<Recording> {
               ),
             ],
           ),
-        MarkerLayer(
-          markers: [
-            Marker(
-              point: currentLocation,
-              width: 20,
-              height: 20,
-              child: Image.asset(
-                'assets/icons/Group 77.png',
+        if (_locationData != null)
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: LatLng(_locationData!.latitude!, _locationData!.longitude!),
+                width: 20,
+                height: 20,
+                child: Image.asset('assets/icons/Group 77.png'),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
       ],
     );
   }

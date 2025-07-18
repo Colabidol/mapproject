@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+lib/pages/get_location.dart
+lib/pages/map_page.dart
+lib/pages/try.dart
